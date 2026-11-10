@@ -1,9 +1,15 @@
 import os
 import cv2
 import numpy as np
-import mediapipe as mp
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
+
+try:
+    import mediapipe as mp
+    from mediapipe.tasks import python
+    from mediapipe.tasks.python import vision
+    HAS_MEDIAPIPE = True
+except Exception as e:
+    HAS_MEDIAPIPE = False
+    print(f"MediaPipe yuklanmadi (Fallback rejimida ishlaydi): {e}")
 
 class TryOnEngine:
     def __init__(self):
@@ -12,7 +18,7 @@ class TryOnEngine:
             "models", "pose_landmarker_lite.task"
         )
         self.detector = None
-        if os.path.exists(self.model_path):
+        if HAS_MEDIAPIPE and os.path.exists(self.model_path):
             try:
                 base_options = python.BaseOptions(model_asset_path=self.model_path)
                 options = vision.PoseLandmarkerOptions(base_options=base_options, output_segmentation_masks=True)
