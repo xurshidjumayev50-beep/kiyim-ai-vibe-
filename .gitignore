@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Database & Generated Uploads
+kiyim_ai.db
+static/uploads/tryon_*.jpg
+static/uploads/test_*.jpg
+static/uploads/test_*.png
+static/uploads/user_*.jpg
+
+# Node / Mobile
+node_modules/
+.expo/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & OS
+.env
+.DS_Store
+Thumbs.db
