@@ -94,11 +94,10 @@ class TryOnEngine:
         return np.clip(fold_layer, 0.75, 1.25)
 
     def try_replicate_cloud_vton(self, person_path: str, garment_path: str, output_path: str) -> bool:
-        """
-        Agar REPLICATE_API_TOKEN mavjud bo'lsa, IDM-VTON bulutli diffusion modelini chaqiradi.
-        """
+        import time
         api_token = os.environ.get("REPLICATE_API_TOKEN")
         if not api_token:
+            print("[VTON] REPLICATE_API_TOKEN topilmadi")
             return False
 
         try:
@@ -109,38 +108,48 @@ class TryOnEngine:
 
             headers = {
                 "Authorization": f"Bearer {api_token}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
             body = {
-                "version": "c871bb9b046616b68044220de00f12165bbf3176bc2f644bb3f3779b33c1fb29", # IDM-VTON
+                "version": "0513734a452173b8173e907e3a59d19a36266e55b48528559432bd21c7d7e985",
                 "input": {
                     "human_img": user_b64,
                     "garm_img": garm_b64,
-                    "category": "upper_body"
-                }
+                    "category": "upper_body",
+                },
             }
 
-            resp = requests.post("https://api.replicate.com/v1/predictions", json=body, headers=headers, timeout=20)
-            if resp.status_code in [200, 201]:
-                prediction = resp.json()
-                poll_url = prediction.get("urls", {}).get("get")
-                import time
-                for _ in range(30):
-                    time.sleep(2)
-                    poll_res = requests.get(poll_url, headers=headers, timeout=10).json()
-                    status = poll_res.get("status")
-                    if status == "succeeded":
-                        out_url = poll_res.get("output")
-                        if isinstance(out_url, list):
-                            out_url = out_url[0]
-                        img_data = requests.get(out_url, timeout=15).content
-                        with open(output_path, "wb") as f_out:
-                            f_out.write(img_data)
-                        return True
-                    elif status in ["failed", "canceled"]:
-                        break
+            print("[VTON] Replicate'ga so'rov yuborilmoqda...")
+            resp = requests.post("https://api.replicate.com/v1/predictions",
+                                 json=body, headers=headers, timeout=90)
+            if resp.status_code not in (200, 201):
+                print(f"[VTON] Replicate xatosi {resp.status_code}: {resp.text[:400]}")
+                return False
+
+            poll_url = resp.json().get("urls", {}).get("get")
+            if not poll_url:
+                print("[VTON] poll url topilmadi")
+                return False
+
+            for _ in range(90):
+                time.sleep(2)
+                poll_res = requests.get(poll_url, headers=headers, timeout=15).json()
+                status = poll_res.get("status")
+                if status == "succeeded":
+                    out_url = poll_res.get("output")
+                    if isinstance(out_url, list):
+                        out_url = out_url[0]
+                    img_data = requests.get(out_url, timeout=60).content
+                    with open(output_path, "wb") as f_out:
+                        f_out.write(img_data)
+                    print("[VTON] Muvaffaqiyatli")
+                    return True
+                elif status in ("failed", "canceled"):
+                    print(f"[VTON] Model xatosi: {poll_res.get('error')}")
+                    return False
+            print("[VTON] Vaqt tugadi (180 soniya)")
         except Exception as e:
-            print(f"Replicate VTON chaqirishda xatolik: {e}")
+            print(f"[VTON] Istisno: {e}")
         return False
 
     def overlay_garment(self, person_path: str, garment_path: str, output_path: str, fit_mode: str = "perfect") -> str:
