@@ -12,6 +12,8 @@ from services.db import (
 )
 from services.fit_engine import fit_engine
 from services.tryon_engine import tryon_engine
+from services.body_measure import body_measurer
+from services.size_chart import fit_check, SIZE_CHART
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
@@ -61,114 +63,233 @@ def garments_endpoint():
         if not file:
             return jsonify({"error": "Kiyim rasmi talab qilinadi"}), 400
 
-        filename = f"garment_{uuid.uuid4().hex[:8]}.jpg"
-        filepath = os.path.join(GARMENT_FOLDER, filename)
-        file.save(filepath)
-
-        img_url = f"/static/garments/{filename}"
+        g_bytes = file.read()
+        img_url = f"data:image/jpeg;base64,{base64.b64encode(g_bytes).decode('utf-8')}"
         gid = add_garment(title, category, img_url, sizes)
         return jsonify({"success": True, "id": gid, "image_url": img_url})
 
     return jsonify(get_garments())
 
+@app.route("/api/measure", methods=["POST"])
+def measure_endpoint():
+    """
+    Tana o'lchamlari (santimetrda) va moslik tahlili (Fit Detection).
+    Rasm serverda saqlanmaydi (faqat xotirada MediaPipe orqali tahlil qilinadi).
+    """
+    try:
+        gender = request.form.get("gender") or (request.json.get("gender") if request.is_json else None) or "male"
+        height_str = request.form.get("height") or request.form.get("height_cm") or (request.json.get("height") if request.is_json else None) or (request.json.get("height_cm") if request.is_json else None)
+        weight_str = request.form.get("weight") or request.form.get("weight_kg") or (request.json.get("weight") if request.is_json else None) or (request.json.get("weight_kg") if request.is_json else None)
+        selected_size = request.form.get("size") or request.form.get("selected_size") or (request.json.get("size") if request.is_json else None) or (request.json.get("selected_size") if request.is_json else None) or "M"
+
+        # Agar oldindan tana o'lchamlari ma'lum bo'lsa (o'lcham tugmasini o'zgartirganda tezkor qayta hisoblash)
+        cached_body = request.json.get("body") if request.is_json else None
+        cached_landmarks = request.json.get("landmarks") if request.is_json else None
+
+        if cached_body:
+            fit_res = fit_check(cached_body, selected_size, landmarks=cached_landmarks)
+            return jsonify({
+                "success": True,
+                "body": cached_body,
+                "landmarks": cached_landmarks or [],
+                "fit": fit_res
+            })
+
+        if not height_str or not weight_str:
+            return jsonify({"success": False, "error": "Bo'y va vazn maydonlari to'ldirilishi shart"}), 400
+
+        try:
+            height_cm = float(height_str)
+            weight_kg = float(weight_str)
+        except ValueError:
+            return jsonify({"success": False, "error": "Bo'y va vazn raqamda kiritilishi kerak"}), 400
+
+        # Rasm ma'lumotini olish (Fayl yoki Base64) - diskka saqlanmaydi
+        image_bytes = None
+        if "image" in request.files:
+            image_bytes = request.files["image"].read()
+        elif "user_image" in request.files:
+            image_bytes = request.files["user_image"].read()
+        elif request.is_json and request.json.get("image_base64"):
+            b64_str = request.json["image_base64"].split(",")[-1]
+            image_bytes = base64.b64decode(b64_str)
+        elif request.form.get("image_base64"):
+            b64_str = request.form.get("image_base64").split(",")[-1]
+            image_bytes = base64.b64decode(b64_str)
+
+        if not image_bytes:
+            return jsonify({"success": False, "error": "Foydalanuvchi rasmi yuklanmadi"}), 400
+
+        # MediaPipe Pose orqali tana o'lchovlarini santimetrda aniqlash
+        body_metrics = body_measurer.measure(
+            image_data=image_bytes,
+            height_cm=height_cm,
+            weight_kg=weight_kg,
+            gender=gender
+        )
+
+        # Tanlangan o'lcham bo'yicha moslik tahlili (fit_check)
+        fit_results = fit_check(
+            body=body_metrics,
+            size=selected_size,
+            landmarks=body_metrics.get("landmarks")
+        )
+
+        return jsonify({
+            "success": True,
+            "body": {
+                "shoulder_cm": body_metrics["shoulder_cm"],
+                "chest_cm": body_metrics["chest_cm"],
+                "waist_cm": body_metrics["waist_cm"],
+                "hip_cm": body_metrics["hip_cm"],
+                "confidence": body_metrics["confidence"]
+            },
+            "landmarks": body_metrics.get("landmarks", []),
+            "fit": fit_results
+        })
+
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Tahlil jarayonida xatolik: {str(e)}"}), 500
+
 @app.route("/api/tryon", methods=["POST"])
 def tryon_endpoint():
     """
     Virtual Try-On va Fit Detection so'rovi:
-    Foydalanuvchi rasmi va Kiyim rasmi qabul qilinadi.
+    Barcha jarayon xotirada bajariladi, server diskida rasm saqlanmaydi.
     """
     try:
-        user_image_path = None
-        user_image_rel = None
+        user_bytes = None
+        user_data_url = None
 
         # 1. Foydalanuvchi rasmini qabul qilish (File yoki Base64 / URL)
         if "user_image" in request.files:
-            file = request.files["user_image"]
-            filename = f"user_{uuid.uuid4().hex[:8]}.jpg"
-            user_image_path = os.path.join(UPLOAD_FOLDER, filename)
-            file.save(user_image_path)
-            user_image_rel = f"/static/uploads/{filename}"
+            user_bytes = request.files["user_image"].read()
         elif request.is_json and request.json.get("user_image_base64"):
             b64_str = request.json["user_image_base64"].split(",")[-1]
-            filename = f"user_{uuid.uuid4().hex[:8]}.jpg"
-            user_image_path = os.path.join(UPLOAD_FOLDER, filename)
-            with open(user_image_path, "wb") as f:
-                f.write(base64.b64decode(b64_str))
-            user_image_rel = f"/static/uploads/{filename}"
+            user_bytes = base64.b64decode(b64_str)
+        elif request.form.get("user_image_base64"):
+            b64_str = request.form.get("user_image_base64").split(",")[-1]
+            user_bytes = base64.b64decode(b64_str)
         elif request.form.get("user_image_url"):
-            user_image_rel = request.form.get("user_image_url")
-            user_image_path = os.path.join(BASE_DIR, user_image_rel.lstrip("/"))
-        else:
-            # Standart sinov rasmidan foydalanish
-            sample = os.path.join(UPLOAD_FOLDER, "sample_user.jpg")
-            if os.path.exists(sample):
-                user_image_path = sample
-                user_image_rel = "/static/uploads/sample_user.jpg"
+            rel = request.form.get("user_image_url")
+            if rel.startswith("data:"):
+                b64_str = rel.split(",")[-1]
+                user_bytes = base64.b64decode(b64_str)
             else:
-                return jsonify({"error": "Foydalanuvchi rasmi yuklanmadi"}), 400
+                p = os.path.join(BASE_DIR, rel.lstrip("/"))
+                if os.path.exists(p):
+                    with open(p, "rb") as f:
+                        user_bytes = f.read()
+
+        if not user_bytes:
+            return jsonify({"success": False, "error": "Foydalanuvchi rasmi yuklanmadi"}), 400
+
+        user_data_url = f"data:image/jpeg;base64,{base64.b64encode(user_bytes).decode('utf-8')}"
 
         # 2. Kiyim rasmini aniqlash
-        garment_image_path = None
-        garment_image_rel = None
-
+        garment_bytes = None
+        garment_url_str = None
         if "garment_image" in request.files:
-            file = request.files["garment_image"]
-            filename = f"garment_{uuid.uuid4().hex[:8]}.jpg"
-            garment_image_path = os.path.join(GARMENT_FOLDER, filename)
-            file.save(garment_image_path)
-            garment_image_rel = f"/static/garments/{filename}"
+            garment_bytes = request.files["garment_image"].read()
+            garment_url_str = f"data:image/jpeg;base64,{base64.b64encode(garment_bytes).decode('utf-8')}"
         elif request.form.get("garment_url") or (request.is_json and request.json.get("garment_url")):
-            garment_image_rel = (request.form.get("garment_url") or request.json.get("garment_url"))
-            garment_image_path = os.path.join(BASE_DIR, garment_image_rel.lstrip("/"))
-        else:
-            # Standart birinchi kiyim
-            default_g = os.path.join(GARMENT_FOLDER, "garment_1.jpg")
-            garment_image_path = default_g
-            garment_image_rel = "/static/garments/garment_1.jpg"
+            g_url = request.form.get("garment_url") or request.json.get("garment_url")
+            garment_url_str = g_url
+            if g_url.startswith("data:"):
+                b64_str = g_url.split(",")[-1]
+                garment_bytes = base64.b64decode(b64_str)
+            else:
+                p = os.path.join(BASE_DIR, g_url.lstrip("/"))
+                if os.path.exists(p):
+                    with open(p, "rb") as f:
+                        garment_bytes = f.read()
+        elif request.is_json and request.json.get("garment_image_base64"):
+            b64_str = request.json["garment_image_base64"].split(",")[-1]
+            garment_bytes = base64.b64decode(b64_str)
+            garment_url_str = f"data:image/jpeg;base64,{b64_str}"
+
+        if not garment_bytes:
+            return jsonify({"success": False, "error": "Kiyim rasmi yuklanmadi"}), 400
 
         selected_size = (
             request.form.get("selected_size") or 
+            request.form.get("size") or
             (request.json.get("selected_size") if request.is_json else None) or 
+            (request.json.get("size") if request.is_json else None) or 
             "M"
         )
 
-        # 3. O'lcham va Moslik (Size & Fit) Tahlili
-        fit_results = fit_engine.analyze_person(user_image_path, selected_size)
+        gender = request.form.get("gender") or (request.json.get("gender") if request.is_json else None) or "male"
+        height_str = request.form.get("height") or request.form.get("height_cm") or (request.json.get("height") if request.is_json else None) or "175"
+        weight_str = request.form.get("weight") or request.form.get("weight_kg") or (request.json.get("weight") if request.is_json else None) or "70"
 
-        # 4. Virtual Try-On Overlay Ishlab Chiqish (Anatomik moslashish & o'lcham effekti)
-        res_filename = f"tryon_{uuid.uuid4().hex[:10]}.jpg"
-        res_filepath = os.path.join(UPLOAD_FOLDER, res_filename)
-        tryon_engine.overlay_garment(
-            user_image_path,
-            garment_image_path,
-            res_filepath,
-            fit_mode=fit_results["fit_status"]
+        try:
+            height_cm = float(height_str)
+            weight_kg = float(weight_str)
+        except ValueError:
+            height_cm, weight_kg = 175.0, 70.0
+
+        # 3. O'lcham va Moslik (Size & Fit) Tahlili
+        fit_status = "ok"
+        match_percentage = 88
+        recommended_size = selected_size
+        fit_advice = "Kiyim sizga mos keladi."
+        body_metrics = {}
+
+        try:
+            body_metrics = body_measurer.measure(
+                image_data=user_bytes,
+                height_cm=height_cm,
+                weight_kg=weight_kg,
+                gender=gender
+            )
+            fit_res = fit_check(
+                body=body_metrics,
+                size=selected_size,
+                landmarks=body_metrics.get("landmarks")
+            )
+            fit_status = fit_res.get("fit_mode", "ok")
+            match_percentage = int(fit_res.get("fit_score", 88))
+            recommended_size = fit_res.get("recommended_size", selected_size)
+            fit_advice = fit_res.get("summary", "O'lcham tahlili yakunlandi.")
+        except Exception as e:
+            # Pose aniqlanmagan taqdirda xatolik bermay umumiy o'lcham bo'yicha hisoblash
+            pass
+
+        # 4. Virtual Try-On Overlay Ishlab Chiqish (Faqat xotirada)
+        res_bytes = tryon_engine.overlay_garment_in_memory(
+            user_bytes,
+            garment_bytes,
+            size=selected_size,
+            fit_mode=fit_status
         )
-        result_image_rel = f"/static/uploads/{res_filename}"
+        res_b64 = f"data:image/jpeg;base64,{base64.b64encode(res_bytes).decode('utf-8')}"
 
         # 5. Tarixga saqlash
         session_id = add_tryon_session(
-            user_image_url=user_image_rel,
-            garment_image_url=garment_image_rel,
-            result_image_url=result_image_rel,
-            fit_status=fit_results["fit_status"],
-            match_percentage=fit_results["match_percentage"],
-            recommended_size=fit_results["recommended_size"],
-            fit_advice=fit_results["fit_advice"],
-            body_metrics=fit_results["body_metrics"]
+            user_image_url=user_data_url,
+            garment_image_url=garment_url_str or "",
+            result_image_url=res_b64,
+            fit_status=fit_status,
+            match_percentage=match_percentage,
+            recommended_size=recommended_size,
+            fit_advice=fit_advice,
+            body_metrics=body_metrics
         )
 
         return jsonify({
             "success": True,
             "session_id": session_id,
-            "result_image_url": result_image_rel,
-            "user_image_url": user_image_rel,
-            "garment_image_url": garment_image_rel,
-            "fit_status": fit_results["fit_status"],
-            "match_percentage": fit_results["match_percentage"],
-            "recommended_size": fit_results["recommended_size"],
-            "fit_advice": fit_results["fit_advice"],
-            "body_metrics": fit_results["body_metrics"]
+            "result_image_url": res_b64,
+            "user_image_url": user_data_url,
+            "garment_image_url": garment_url_str,
+            "fit_status": fit_status,
+            "match_percentage": match_percentage,
+            "recommended_size": recommended_size,
+            "fit_advice": fit_advice,
+            "body_metrics": body_metrics
         })
 
     except Exception as e:

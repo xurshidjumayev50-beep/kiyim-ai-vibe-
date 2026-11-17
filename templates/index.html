@@ -78,40 +78,117 @@
             <span class="text-[11px] font-semibold text-zinc-400 mb-2 uppercase tracking-wider flex items-center">
               <i data-lucide="user" class="w-3 h-3 mr-1 text-indigo-400"></i> Sizning Rasmingiz
             </span>
-            <div id="user-image-preview" class="w-full h-44 bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden flex flex-col items-center justify-center relative cursor-pointer group">
-              <img id="user-img-element" src="/static/uploads/sample_user.jpg" class="w-full h-full object-cover">
-              <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs">
-                O'zgartirish
+            <div id="user-image-preview" onclick="triggerUserUpload()" class="w-full h-44 bg-zinc-950 border border-zinc-800 border-dashed hover:border-zinc-700 rounded-2xl overflow-hidden flex flex-col items-center justify-center relative cursor-pointer group transition">
+              <!-- Empty Placeholder -->
+              <div id="user-empty-placeholder" class="flex flex-col items-center justify-center text-center p-2 space-y-1.5">
+                <div class="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 group-hover:text-indigo-400 group-hover:border-indigo-500/40 transition">
+                  <i data-lucide="image-plus" class="w-4 h-4"></i>
+                </div>
+                <span class="text-xs font-semibold text-zinc-300 group-hover:text-white transition">+ Rasm tanlang</span>
+                <span class="text-[9px] text-zinc-500">JPG, PNG, WEBP (maks. 10MB)</span>
               </div>
+              <!-- Loaded Image -->
+              <img id="user-img-element" src="" class="hidden w-full h-full object-cover">
             </div>
-            <!-- Upload / Camera Buttons -->
-            <div class="flex items-center space-x-2 mt-2.5 w-full">
-              <button onclick="document.getElementById('user-file-input').click()" class="flex-1 bg-zinc-800 hover:bg-zinc-700 py-1.5 rounded-xl text-xs font-medium text-zinc-200 flex items-center justify-center space-x-1 transition">
+
+            <!-- Empty State Controls -->
+            <div id="user-empty-controls" class="flex items-center space-x-1.5 mt-2.5 w-full">
+              <button type="button" onclick="document.getElementById('user-file-input').click()" class="flex-1 bg-zinc-800 hover:bg-zinc-700 py-1.5 rounded-xl text-xs font-medium text-zinc-200 flex items-center justify-center space-x-1 transition">
                 <i data-lucide="image" class="w-3.5 h-3.5 text-indigo-400"></i>
                 <span>Galereya</span>
               </button>
-              <button onclick="openLiveCamera()" class="bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-xl text-xs font-medium text-zinc-200 flex items-center justify-center transition">
+              <button type="button" onclick="openLiveCamera()" class="bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-xl text-xs font-medium text-zinc-200 flex items-center justify-center transition" title="Kamera">
                 <i data-lucide="camera" class="w-3.5 h-3.5 text-indigo-400"></i>
               </button>
             </div>
-            <input type="file" id="user-file-input" accept="image/*" class="hidden" onchange="handleUserFileSelect(event)">
+
+            <!-- Loaded State Controls -->
+            <div id="user-loaded-controls" class="hidden items-center space-x-1 mt-2.5 w-full">
+              <button type="button" onclick="document.getElementById('user-file-input').click()" class="flex-1 bg-zinc-800 hover:bg-zinc-700 py-1.5 rounded-xl text-[11px] font-medium text-zinc-200 flex items-center justify-center space-x-1 transition">
+                <i data-lucide="refresh-cw" class="w-3 h-3 text-indigo-400"></i>
+                <span>Almashtirish</span>
+              </button>
+              <button type="button" onclick="openLiveCamera()" class="bg-zinc-800 hover:bg-zinc-700 px-2 py-1.5 rounded-xl text-zinc-300 hover:text-white transition" title="Kamera">
+                <i data-lucide="camera" class="w-3 h-3 text-indigo-400"></i>
+              </button>
+              <button type="button" onclick="clearUserImage()" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 py-1.5 px-2 rounded-xl text-[11px] font-medium flex items-center justify-center space-x-1 transition" title="O'chirish">
+                <i data-lucide="trash-2" class="w-3 h-3"></i>
+                <span>O'chirish</span>
+              </button>
+            </div>
+
+            <!-- Tana o'lchamlari maydonlari (Hammasi majburiy) -->
+            <div class="mt-3 pt-2.5 border-t border-zinc-800/80 w-full space-y-2">
+              <span class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block text-center">
+                Tana Parametrlari <span class="text-rose-400">*</span>
+              </span>
+              
+              <!-- Jins (Erkak / Ayol) -->
+              <div class="grid grid-cols-2 gap-1.5 w-full">
+                <button type="button" onclick="setGender('male')" id="gender-male-btn" class="gender-btn py-1 px-1.5 rounded-xl text-[11px] font-semibold bg-indigo-600 text-white border border-indigo-400 flex items-center justify-center space-x-1 transition shadow-sm">
+                  <span>Erkak</span>
+                </button>
+                <button type="button" onclick="setGender('female')" id="gender-female-btn" class="gender-btn py-1 px-1.5 rounded-xl text-[11px] font-semibold bg-zinc-800 text-zinc-400 border border-zinc-700/60 hover:text-white flex items-center justify-center space-x-1 transition">
+                  <span>Ayol</span>
+                </button>
+                <input type="hidden" id="user-gender-input" value="{{ profile.gender or 'male' }}">
+              </div>
+
+              <!-- Bo'y va Vazn -->
+              <div class="grid grid-cols-2 gap-1.5 w-full">
+                <div>
+                  <label class="text-[9px] font-semibold text-zinc-400 block mb-0.5">Bo'y (sm) <span class="text-rose-400">*</span></label>
+                  <input type="number" id="user-height-input" value="{{ profile.height_cm|int if profile.height_cm else 175 }}" min="100" max="230" required class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-2 py-1 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500 transition" placeholder="175" onchange="handleBodyParamChange()">
+                </div>
+                <div>
+                  <label class="text-[9px] font-semibold text-zinc-400 block mb-0.5">Vazn (kg) <span class="text-rose-400">*</span></label>
+                  <input type="number" id="user-weight-input" value="{{ profile.weight_kg|int if profile.weight_kg else 70 }}" min="30" max="200" required class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-2 py-1 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500 transition" placeholder="70" onchange="handleBodyParamChange()">
+                </div>
+              </div>
+            </div>
+
+            <input type="file" id="user-file-input" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="handleUserFileSelect(event)">
           </div>
 
           <!-- Garment Slot -->
-          <div class="bg-zinc-900/90 border border-zinc-800 rounded-3xl p-3 flex flex-col items-center">
+          <div class="bg-zinc-900/90 border border-zinc-800 rounded-3xl p-3 flex flex-col justify-between items-center">
             <span class="text-[11px] font-semibold text-zinc-400 mb-2 uppercase tracking-wider flex items-center">
               <i data-lucide="shirt" class="w-3 h-3 mr-1 text-indigo-400"></i> Kiyim Rasmi
             </span>
-            <div id="garment-image-preview" class="w-full h-44 bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden flex flex-col items-center justify-center relative">
-              <img id="garment-img-element" src="/static/garments/garment_1.jpg" class="w-full h-full object-contain p-2">
+            <div id="garment-image-preview" onclick="triggerGarmentUpload()" class="w-full h-44 bg-zinc-950 border border-zinc-800 border-dashed hover:border-zinc-700 rounded-2xl overflow-hidden flex flex-col items-center justify-center relative cursor-pointer group transition">
+              <!-- Empty Placeholder -->
+              <div id="garment-empty-placeholder" class="flex flex-col items-center justify-center text-center p-2 space-y-1.5">
+                <div class="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 group-hover:text-indigo-400 group-hover:border-indigo-500/40 transition">
+                  <i data-lucide="shirt" class="w-4 h-4"></i>
+                </div>
+                <span class="text-xs font-semibold text-zinc-300 group-hover:text-white transition">+ Rasm tanlang</span>
+                <span class="text-[9px] text-zinc-500">JPG, PNG, WEBP (maks. 10MB)</span>
+              </div>
+              <!-- Loaded Image -->
+              <img id="garment-img-element" src="" class="hidden w-full h-full object-contain p-2">
             </div>
-            <div class="flex items-center space-x-2 mt-2.5 w-full">
-              <button onclick="document.getElementById('garment-file-input').click()" class="flex-1 bg-zinc-800 hover:bg-zinc-700 py-1.5 rounded-xl text-xs font-medium text-zinc-200 flex items-center justify-center space-x-1 transition">
+
+            <!-- Empty State Controls -->
+            <div id="garment-empty-controls" class="flex items-center space-x-1.5 mt-2.5 w-full">
+              <button type="button" onclick="document.getElementById('garment-file-input').click()" class="flex-1 bg-zinc-800 hover:bg-zinc-700 py-1.5 rounded-xl text-xs font-medium text-zinc-200 flex items-center justify-center space-x-1 transition">
                 <i data-lucide="upload" class="w-3.5 h-3.5 text-indigo-400"></i>
                 <span>Yuklash</span>
               </button>
             </div>
-            <input type="file" id="garment-file-input" accept="image/*" class="hidden" onchange="handleGarmentFileSelect(event)">
+
+            <!-- Loaded State Controls -->
+            <div id="garment-loaded-controls" class="hidden items-center space-x-1.5 mt-2.5 w-full">
+              <button type="button" onclick="document.getElementById('garment-file-input').click()" class="flex-1 bg-zinc-800 hover:bg-zinc-700 py-1.5 rounded-xl text-[11px] font-medium text-zinc-200 flex items-center justify-center space-x-1 transition">
+                <i data-lucide="refresh-cw" class="w-3 h-3 text-indigo-400"></i>
+                <span>Almashtirish</span>
+              </button>
+              <button type="button" onclick="clearGarmentImage()" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 py-1.5 px-2.5 rounded-xl text-[11px] font-medium flex items-center justify-center space-x-1 transition" title="O'chirish">
+                <i data-lucide="trash-2" class="w-3 h-3"></i>
+                <span>O'chirish</span>
+              </button>
+            </div>
+
+            <input type="file" id="garment-file-input" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="handleGarmentFileSelect(event)">
           </div>
         </div>
 
@@ -121,16 +198,22 @@
             <h3 class="text-xs font-bold text-zinc-300 uppercase tracking-wider">Katalogdan Tanlang</h3>
             <span class="text-[11px] text-zinc-500">Kiyim ustiga bosing</span>
           </div>
-          <div id="wardrobe-scroll" class="flex space-x-3 overflow-x-auto pb-2 scrollbar-none">
-            {% for g in garments %}
-            <div onclick="selectGarment('{{ g.image_url }}', '{{ g.title }}', this)" 
-                 class="garment-card flex-shrink-0 w-20 bg-zinc-900 border border-zinc-800 hover:border-indigo-500 rounded-2xl p-2 cursor-pointer transition-all {% if loop.first %}ring-2 ring-indigo-500 border-transparent{% endif %}">
-              <div class="w-16 h-20 rounded-xl overflow-hidden bg-black/40 flex items-center justify-center mb-1.5">
-                <img src="{{ g.image_url }}" class="w-full h-full object-contain">
+          <div id="wardrobe-scroll" class="flex space-x-3 overflow-x-auto pb-2 scrollbar-none min-h-[90px] items-center">
+            {% if garments and garments|length > 0 %}
+              {% for g in garments %}
+              <div onclick="selectGarment('{{ g.image_url }}', '{{ g.title }}', this)" 
+                   class="garment-card flex-shrink-0 w-20 bg-zinc-900 border border-zinc-800 hover:border-indigo-500 rounded-2xl p-2 cursor-pointer transition-all">
+                <div class="w-16 h-20 rounded-xl overflow-hidden bg-black/40 flex items-center justify-center mb-1.5">
+                  <img src="{{ g.image_url }}" class="w-full h-full object-contain">
+                </div>
+                <p class="text-[10px] font-medium text-zinc-300 truncate text-center">{{ g.title }}</p>
               </div>
-              <p class="text-[10px] font-medium text-zinc-300 truncate text-center">{{ g.title }}</p>
-            </div>
-            {% endfor %}
+              {% endfor %}
+            {% else %}
+              <div id="wardrobe-scroll-empty" class="w-full py-4 text-center text-xs text-zinc-500 bg-zinc-900/40 rounded-2xl border border-zinc-800/80">
+                Hali kiyim yo'q. Galereyadan yuklang
+              </div>
+            {% endif %}
           </div>
         </div>
 
@@ -151,10 +234,13 @@
         </div>
 
         <!-- Action Button -->
-        <button id="tryon-submit-btn" onclick="executeTryOn()" class="w-full bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold py-4 rounded-2xl shadow-xl shadow-indigo-600/25 flex items-center justify-center space-x-2 transition active:scale-[0.98]">
-          <i data-lucide="wand-2" class="w-5 h-5"></i>
-          <span class="text-sm">Virtual Kiyib Ko'rish (Try-On)</span>
-        </button>
+        <div>
+          <button id="tryon-submit-btn" onclick="executeTryOn()" disabled class="w-full bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 text-white font-bold py-4 rounded-2xl shadow-xl shadow-indigo-600/25 flex items-center justify-center space-x-2 transition opacity-50 cursor-not-allowed">
+            <i data-lucide="wand-2" class="w-5 h-5"></i>
+            <span class="text-sm">Virtual Kiyib Ko'rish (Try-On)</span>
+          </button>
+          <p id="tryon-btn-hint" class="text-[11px] text-zinc-500 text-center mt-2 font-medium">Avval ikkala rasmni yuklang</p>
+        </div>
 
         <!-- Loading Indicator -->
         <div id="tryon-loading" class="hidden bg-zinc-900/90 border border-zinc-800 rounded-3xl p-6 text-center space-y-3">
@@ -172,23 +258,9 @@
             <span class="text-xs text-zinc-500">Hozirgina generatsiya qilindi</span>
           </div>
 
-          <!-- Result Image Display with Before/After Toggle -->
-          <div class="relative w-full h-96 bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl">
-            <img id="result-img-element" src="" class="w-full h-full object-cover transition-opacity duration-150">
-            <!-- Before / After Switcher Pill -->
-            <div class="absolute bottom-3.5 left-3 right-3 flex items-center justify-between pointer-events-auto">
-              <span id="fit-visual-effect" class="px-3 py-1 rounded-full text-[10px] font-bold bg-black/75 backdrop-blur-md text-zinc-200 border border-zinc-700">
-                Anatomik siluet
-              </span>
-              <button id="toggle-before-after-btn" 
-                      onmousedown="showOriginalImage()" 
-                      onmouseup="showResultImage()" 
-                      ontouchstart="showOriginalImage()" 
-                      ontouchend="showResultImage()" 
-                      class="px-3 py-1.5 rounded-full text-[10px] font-bold bg-indigo-600/90 text-white shadow-lg backdrop-blur-md active:bg-indigo-500 transition flex items-center">
-                <span>Bosib turing: Oldin</span>
-              </button>
-            </div>
+          <!-- Result Image Display -->
+          <div class="relative w-full h-96 bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl flex items-center justify-center">
+            <img id="result-img-element" src="" class="w-full h-full object-cover">
           </div>
 
           <!-- Fit & Size Analysis Card -->
@@ -198,8 +270,8 @@
                 <i data-lucide="activity" class="w-4 h-4 text-indigo-400"></i>
                 <span class="text-xs font-bold text-white">O'lcham va Moslik Tahlili</span>
               </div>
-              <span id="fit-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                Ideal Moslik
+              <span id="fit-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-zinc-800 text-zinc-400 border border-zinc-700/60">
+                Tahlil kutilmoqda
               </span>
             </div>
 
@@ -207,17 +279,17 @@
             <div class="space-y-1">
               <div class="flex justify-between text-xs">
                 <span class="text-zinc-400">AI Moslik darajasi:</span>
-                <span id="fit-percent" class="font-extrabold text-white text-sm">96.5%</span>
+                <span id="fit-percent" class="font-extrabold text-white text-sm">--%</span>
               </div>
               <div class="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
-                <div id="fit-bar" class="h-full bg-emerald-500 rounded-full transition-all duration-700" style="width: 96%"></div>
+                <div id="fit-bar" class="h-full bg-indigo-500 rounded-full transition-all duration-700" style="width: 0%"></div>
               </div>
             </div>
 
             <!-- Advice Box -->
             <div class="bg-zinc-950/60 p-3 rounded-2xl border border-zinc-800/80 text-xs text-zinc-300 leading-relaxed">
-              <p id="fit-advice-text">Kiyim qomatingizga juda chiroyli tushdi.</p>
-              <p class="mt-1 text-indigo-400 font-bold" id="fit-rec-size">Tavsiya etilgan o'lcham: M</p>
+              <p id="fit-advice-text">Tahlil kutilmoqda</p>
+              <p class="mt-1 text-indigo-400 font-bold" id="fit-rec-size">Tavsiya etilgan o'lcham: --</p>
             </div>
           </div>
         </div>
@@ -261,21 +333,27 @@
             <span>Qo'shish</span>
           </button>
         </div>
-        <input type="file" id="new-garment-file" accept="image/*" class="hidden" onchange="uploadNewGarment(event)">
+        <input type="file" id="new-garment-file" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="uploadNewGarment(event)">
 
-        <div id="wardrobe-grid" class="grid grid-cols-2 gap-3">
-          {% for g in garments %}
-          <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 flex flex-col items-center">
-            <div class="w-full h-36 bg-zinc-950 rounded-xl overflow-hidden p-2 flex items-center justify-center mb-2">
-              <img src="{{ g.image_url }}" class="w-full h-full object-contain">
+        <div id="wardrobe-grid" class="grid grid-cols-2 gap-3 min-h-[140px]">
+          {% if garments and garments|length > 0 %}
+            {% for g in garments %}
+            <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 flex flex-col items-center">
+              <div class="w-full h-36 bg-zinc-950 rounded-xl overflow-hidden p-2 flex items-center justify-center mb-2">
+                <img src="{{ g.image_url }}" class="w-full h-full object-contain">
+              </div>
+              <p class="text-xs font-bold text-white truncate w-full text-center">{{ g.title }}</p>
+              <p class="text-[10px] text-zinc-500 uppercase mt-0.5">{{ g.category }}</p>
+              <button onclick="useInStudio('{{ g.image_url }}', '{{ g.title }}')" class="mt-2.5 w-full bg-zinc-800 hover:bg-zinc-700 py-1.5 rounded-xl text-[11px] font-semibold text-indigo-400 transition">
+                Kiyib ko'rish
+              </button>
             </div>
-            <p class="text-xs font-bold text-white truncate w-full text-center">{{ g.title }}</p>
-            <p class="text-[10px] text-zinc-500 uppercase mt-0.5">{{ g.category }}</p>
-            <button onclick="useInStudio('{{ g.image_url }}', '{{ g.title }}')" class="mt-2.5 w-full bg-zinc-800 hover:bg-zinc-700 py-1.5 rounded-xl text-[11px] font-semibold text-indigo-400 transition">
-              Kiyib ko'rish
-            </button>
-          </div>
-          {% endfor %}
+            {% endfor %}
+          {% else %}
+            <div id="wardrobe-grid-empty" class="col-span-2 py-12 text-center text-xs text-zinc-500 bg-zinc-900/40 rounded-2xl border border-zinc-800/80">
+              Hali kiyim yo'q. Galereyadan yuklang
+            </div>
+          {% endif %}
         </div>
       </section>
 

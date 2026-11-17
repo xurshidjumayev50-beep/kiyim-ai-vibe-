@@ -63,19 +63,6 @@ def init_db():
             VALUES (?, ?, ?, ?, ?, ?)
         """, ('Xurshid', 178.0, 72.0, 'male', 'M', datetime.now().isoformat()))
 
-    # Standart kiyimlar mavjudligini tekshirish
-    cursor.execute("SELECT COUNT(*) as count FROM garments")
-    if cursor.fetchone()["count"] == 0:
-        default_garments = [
-            ("Premium Classic Hoodie", "upper_body", "/static/garments/garment_1.jpg", json.dumps(["S", "M", "L", "XL"])),
-            ("Urban Street T-Shirt", "upper_body", "/static/garments/garment_1.jpg", json.dumps(["XS", "S", "M", "L", "XL", "XXL"])),
-            ("Luxury Black Blazer", "upper_body", "/static/garments/garment_1.jpg", json.dumps(["M", "L", "XL"])),
-        ]
-        cursor.executemany("""
-            INSERT INTO garments (title, category, image_url, sizes, created_at)
-            VALUES (?, ?, ?, ?, ?)
-        """, [(t, c, img, s, datetime.now().isoformat()) for t, c, img, s in default_garments])
-
     conn.commit()
     conn.close()
 

@@ -7,3 +7,4 @@ mediapipe>=0.10.0
 numpy>=1.24.0,<2.3.0
 Pillow>=10.0.0
 requests>=2.31.0
+rembg>=2.0.50
